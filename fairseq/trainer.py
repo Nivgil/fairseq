@@ -815,6 +815,7 @@ class Trainer(object):
 
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
+        timings = []
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
 
@@ -841,6 +842,7 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
+                    start = time.time()
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
                         model=self.model,
@@ -849,6 +851,15 @@ class Trainer(object):
                         update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
                         **extra_kwargs,
+                    )
+                    torch.cuda.synchronize()
+                    end = time.time()
+                    timings.append(
+                        {'nsentences': sample['nsentences'],
+                         'ntokens': sample['ntokens'],
+                         'sentence_length': sample['net_input']['src_tokens'].shape[1],
+                         'compute_time_sec': end - start,
+                         'step_number': self.get_num_updates()}
                     )
                     del loss
 
@@ -1114,7 +1125,7 @@ class Trainer(object):
             )
 
         metrics.log_stop_time("train_wall")
-        return logging_output
+        return logging_output, timings
 
     @metrics.aggregate("valid")
     def valid_step(self, sample, raise_oom=False):

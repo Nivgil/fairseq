@@ -11,6 +11,7 @@ import argparse
 import logging
 import math
 import os
+import pandas as pd
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -177,6 +178,7 @@ def main(cfg: FairseqConfig) -> None:
 
     train_meter = meters.StopwatchMeter()
     train_meter.start()
+    timings = []
     while epoch_itr.next_epoch_idx <= max_epoch:
         if lr <= cfg.optimization.stop_min_lr:
             logger.info(
@@ -187,7 +189,8 @@ def main(cfg: FairseqConfig) -> None:
             break
 
         # train for one epoch
-        valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
+        valid_losses, should_stop, timings_epoch = train(cfg, trainer, task, epoch_itr)
+        timings.extend(timings_epoch)
         if should_stop:
             break
 
@@ -203,6 +206,8 @@ def main(cfg: FairseqConfig) -> None:
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
+    with open(f'roberta_wikitext_timings.csv', 'w') as f:
+        f.write(pd.DataFrame(timings).to_csv())
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:
@@ -309,11 +314,13 @@ def train(
     should_stop = False
     num_updates = trainer.get_num_updates()
     logger.info("Start iterating over samples")
+    timings = []
     for i, samples in enumerate(progress):
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
-            log_output = trainer.train_step(samples)
+            log_output, timings_step = trainer.train_step(samples)
+            timings.extend(timings_step)
 
         if log_output is not None:  # not OOM, overflow, ...
             # log mid-epoch stats
@@ -341,7 +348,7 @@ def train(
 
     # reset epoch-level meters
     metrics.reset_meters("train")
-    return valid_losses, should_stop
+    return valid_losses, should_stop, timings
 
 
 def _flatten_config(cfg: DictConfig):
