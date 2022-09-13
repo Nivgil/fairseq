@@ -888,9 +888,9 @@ class Trainer(object):
                     raise e
             except Exception:
                 self.consolidate_optimizer()
-                self.save_checkpoint(
-                    os.path.join(self.cfg.checkpoint.save_dir, "crash.pt"), {}
-                )
+                # self.save_checkpoint(
+                #     os.path.join(self.cfg.checkpoint.save_dir, "crash.pt"), {}
+                # )
                 raise
 
             if self.tpu and i < len(samples) - 1:
@@ -995,9 +995,9 @@ class Trainer(object):
         except FloatingPointError:
 
             self.consolidate_optimizer()
-            self.save_checkpoint(
-                os.path.join(self.cfg.checkpoint.save_dir, "crash.pt"), {}
-            )
+            # self.save_checkpoint(
+            #     os.path.join(self.cfg.checkpoint.save_dir, "crash.pt"), {}
+            # )
 
             # re-run the forward and backward pass with hooks attached to print
             # out where it fails
