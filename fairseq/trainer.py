@@ -17,6 +17,7 @@ from itertools import chain
 from typing import Any, Dict, List
 
 import torch
+import torch.distributed as dist
 from omegaconf import OmegaConf
 
 from fairseq import checkpoint_utils, models, optim, utils
@@ -816,6 +817,7 @@ class Trainer(object):
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
         timings = []
+        start_compute = time.time()
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
 
@@ -842,7 +844,6 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
-                    start = time.time()
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
                         model=self.model,
@@ -852,13 +853,10 @@ class Trainer(object):
                         ignore_grad=is_dummy_batch,
                         **extra_kwargs,
                     )
-                    torch.cuda.synchronize()
-                    end = time.time()
                     timings.append(
                         {'nsentences': sample['nsentences'],
                          'ntokens': sample['ntokens'],
-                         'sentence_length': sample['net_input']['src_tokens'].shape[1],
-                         'compute_time_sec': end - start,
+                         'max_sentence_length': sample['net_input']['src_tokens'].shape[1],
                          'step_number': self.get_num_updates()}
                     )
                     del loss
@@ -913,6 +911,10 @@ class Trainer(object):
             sample_size = float(sample_size)
 
         # gather logging outputs from all replicas
+        torch.cuda.synchronize()
+        end_compute = time.time()
+        dist.barrier()
+        start_all_reduce = time.time()
         if self._sync_stats():
             train_time = self._local_cumulative_training_time()
             (
@@ -936,6 +938,7 @@ class Trainer(object):
                 self.optimizer.all_reduce_grads(self.model)
                 if utils.has_parameters(self.criterion):
                     self.optimizer.all_reduce_grads(self.criterion)
+                end_all_reduce = time.time()
 
             with torch.autograd.profiler.record_function("multiply-grads"):
                 # multiply gradients by (data_parallel_size / sample_size) since
@@ -979,8 +982,20 @@ class Trainer(object):
 
             with torch.autograd.profiler.record_function("optimizer"):
                 # take an optimization step
+                start_optim = time.time()
                 self.task.optimizer_step(
                     self.optimizer, model=self.model, update_num=self.get_num_updates()
+                )
+                end_optim = time.time()
+                timings.append(
+                    {'step_number': self.get_num_updates(),
+                     'start_compute': start_compute,
+                     'end_compute': end_compute,
+                     'start_optimizer': start_optim,
+                     'end_optimizer': end_optim,
+                     'start_all_reduce': start_all_reduce,
+                     'end_all_reduce': end_all_reduce
+                     }
                 )
                 if self.cfg.common.amp and overflow:
                     if self._amp_retries == self.cfg.common.amp_batch_retries:
@@ -1465,7 +1480,6 @@ class Trainer(object):
                 data["logging_outputs_" + k] = v
         else:
             log_keys = None
-
         data = distributed_utils.all_reduce_dict(
             data, device=self.device, group=self.data_parallel_process_group
         )

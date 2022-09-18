@@ -206,7 +206,7 @@ def main(cfg: FairseqConfig) -> None:
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
-    with open(f'roberta_wikitext_timings.csv', 'w') as f:
+    with open(f'roberta_wikitext_timings_rank_{distributed_utils.get_data_parallel_rank()}.csv', 'w') as f:
         f.write(pd.DataFrame(timings).to_csv())
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
