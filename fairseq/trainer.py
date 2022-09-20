@@ -817,9 +817,20 @@ class Trainer(object):
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
         timings = []
+        total_compute_th = 1.8  # sec
+        time_estimation_coeff = 0.00025
         start_compute = time.time()
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
+            max_sentence_length = sample['net_input']['src_tokens'].shape[1]
+            current_time = time.time() - start_compute
+            time_estimation = max_sentence_length * time_estimation_coeff
+            if current_time + time_estimation > total_compute_th:
+                print(f'Rank {distributed_utils.get_data_parallel_rank()}\t'
+                      f'Estimated time {current_time + time_estimation:3.3f}'
+                      f' [sec] Skipped mini batch of size '
+                      f'{sample["net_input"]["src_tokens"].shape}')
+                continue
 
             def maybe_no_sync():
                 """
