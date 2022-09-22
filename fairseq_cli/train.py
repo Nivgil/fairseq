@@ -326,8 +326,6 @@ def train(
             # log mid-epoch stats
             num_updates = trainer.get_num_updates()
             if num_updates % cfg.common.log_interval == 0:
-                compute_time = [time_sample['end_compute'] - time_sample['start_compute'] for time_sample in timings if 'end_compute' in time_sample]
-                print(f'Rank {distributed_utils.get_data_parallel_rank()} compute time 95% percentile {np.percentile(compute_time, 95):3.3}')
                 stats = get_training_stats(metrics.get_smoothed_values("train_inner"))
                 progress.log(stats, tag="train_inner", step=num_updates)
 

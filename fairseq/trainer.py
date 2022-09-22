@@ -818,7 +818,7 @@ class Trainer(object):
         logging_outputs, sample_size, ooms = [], 0, 0
         timings = []
         total_compute_th = self.cfg.optimization.compute_threshold
-        time_estimation_coeff = 0.00025
+        time_estimation_coeff = 0.0005
         start_compute = time.time()
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
