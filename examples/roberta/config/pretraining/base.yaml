@@ -21,8 +21,9 @@ task:
 criterion: masked_lm
 
 dataset:
-  batch_size: 64
+  batch_size: 256
   ignore_unused_valid_subsets: true
+  skip_invalid_size_inputs_valid_test: true
 
 optimizer:
   _name: adam
