@@ -24,6 +24,7 @@ dataset:
   batch_size: 256
   ignore_unused_valid_subsets: true
   skip_invalid_size_inputs_valid_test: true
+  validate_interval: 10
 
 optimizer:
   _name: adam
