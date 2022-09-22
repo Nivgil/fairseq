@@ -639,7 +639,7 @@ class OptimizationConfig(FairseqDataclass):
     compute_threshold: float = field(
         default=-1, metadata={
             "help": "if larger than 0, the mini-batches will be skipped when"
-                    " compute time exceeds threshold"
+                    " compute time in seconds exceeds threshold"
         }
     )
 
