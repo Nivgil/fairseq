@@ -39,7 +39,7 @@ optimization:
   lr: [0.0005]
   max_update: 4000
   update_freq: [4]
-  compute_threshold: 1.1
+  compute_threshold: 0.95
 
 model:
   _name: roberta
