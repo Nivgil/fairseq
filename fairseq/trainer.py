@@ -817,19 +817,26 @@ class Trainer(object):
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
         timings = []
-        total_compute_th = 1.8  # sec
+        total_compute_th = self.cfg.optimization.compute_threshold
         time_estimation_coeff = 0.00025
         start_compute = time.time()
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
             max_sentence_length = sample['net_input']['src_tokens'].shape[1]
-            current_time = time.time() - start_compute
-            time_estimation = max_sentence_length * time_estimation_coeff
-            if current_time + time_estimation > total_compute_th:
-                print(f'Rank {distributed_utils.get_data_parallel_rank()}\t'
-                      f'Estimated time {current_time + time_estimation:3.3f}'
-                      f' [sec] Skipped mini batch of size '
-                      f'{sample["net_input"]["src_tokens"].shape}')
+            current_compute_time = time.time() - start_compute
+            compute_time_estimation = max_sentence_length * time_estimation_coeff
+            if total_compute_th > 0 and (
+                    current_compute_time + compute_time_estimation > total_compute_th):
+                timings.append({
+                    'nsentences': sample['nsentences'],
+                    'ntokens': sample['ntokens'],
+                    'max_sentence_length':
+                        sample['net_input']['src_tokens'].shape[1],
+                    'step_number': self.get_num_updates(),
+                    'estimated_time': compute_time_estimation,
+                    'actual_time': 'DROP'
+                })
+
                 continue
 
             def maybe_no_sync():
@@ -864,12 +871,16 @@ class Trainer(object):
                         ignore_grad=is_dummy_batch,
                         **extra_kwargs,
                     )
-                    timings.append(
-                        {'nsentences': sample['nsentences'],
-                         'ntokens': sample['ntokens'],
-                         'max_sentence_length': sample['net_input']['src_tokens'].shape[1],
-                         'step_number': self.get_num_updates()}
-                    )
+                    timings.append({
+                        'nsentences': sample['nsentences'],
+                        'ntokens': sample['ntokens'],
+                        'max_sentence_length':
+                            sample['net_input']['src_tokens'].shape[1],
+                        'step_number': self.get_num_updates(),
+                        'estimated_time': compute_time_estimation,
+                        'actual_time':
+                            time.time() - (current_compute_time + start_compute)
+                    })
                     del loss
 
                 logging_outputs.append(logging_output)
