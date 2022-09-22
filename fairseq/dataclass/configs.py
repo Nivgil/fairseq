@@ -636,6 +636,12 @@ class OptimizationConfig(FairseqDataclass):
             " (default is to skip it)."
         },
     )
+    compute_threshold: float = field(
+        default=-1, metadata={
+            "help": "if larger than 0, the mini-batches will be skipped when"
+                    " compute time exceeds threshold"
+        }
+    )
 
 
 @dataclass
