@@ -824,7 +824,7 @@ class Trainer(object):
             sample, is_dummy_batch = self._prepare_sample(sample)
             max_sentence_length = sample['net_input']['src_tokens'].shape[1]
             current_compute_time = time.time() - start_compute
-            compute_time_estimation = max_sentence_length * time_estimation_coeff
+            compute_time_estimation = max_sentence_length * time_estimation_coeff + 0.0117
             if total_compute_th > 0 and (
                     current_compute_time + compute_time_estimation > total_compute_th):
                 timings.append({
