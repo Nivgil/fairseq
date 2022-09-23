@@ -798,7 +798,7 @@ class Trainer(object):
         self._dummy_batch = batch
 
     @metrics.aggregate("train")
-    def train_step(self, samples, raise_oom=False):
+    def train_step(self, samples, compute_logs, raise_oom=False):
         """Do forward, backward and parameter update."""
         self._set_seed()
         self.model.train()
@@ -817,27 +817,14 @@ class Trainer(object):
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
         timings = []
-        total_compute_th = self.cfg.optimization.compute_threshold
-        time_estimation_coeff = 0.0005
+        compute_timeout_error = compute_logs['compute_timeout_error']
+        compute_logs['start_compute'] = time.time()
+        compute_logs['threshold'] = self.cfg.optimization.compute_threshold
+        compute_logs['enable_drop'] = self.get_num_updates() > 5 and (
+                compute_logs['threshold'] > 0)
         start_compute = time.time()
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
-            max_sentence_length = sample['net_input']['src_tokens'].shape[1]
-            current_compute_time = time.time() - start_compute
-            compute_time_estimation = max_sentence_length * time_estimation_coeff + 0.0117
-            if total_compute_th > 0 and (
-                    current_compute_time + compute_time_estimation > total_compute_th):
-                timings.append({
-                    'nsentences': sample['nsentences'],
-                    'ntokens': sample['ntokens'],
-                    'max_sentence_length':
-                        sample['net_input']['src_tokens'].shape[1],
-                    'step_number': self.get_num_updates(),
-                    'estimated_time': compute_time_estimation,
-                    'actual_time': 'DROP'
-                })
-
-                continue
 
             def maybe_no_sync():
                 """
@@ -877,9 +864,10 @@ class Trainer(object):
                         'max_sentence_length':
                             sample['net_input']['src_tokens'].shape[1],
                         'step_number': self.get_num_updates(),
-                        'estimated_time': compute_time_estimation,
-                        'actual_time':
-                            time.time() - (current_compute_time + start_compute)
+                        'stop_at_layer': 'FULL'
+                        # 'estimated_time': compute_time_estimation,
+                        # 'actual_time':
+                        #     time.time() - (current_compute_time + start_compute)
                     })
                     del loss
 
@@ -906,6 +894,19 @@ class Trainer(object):
                         return None
                 else:
                     raise e
+            except compute_timeout_error as e:
+                timings.append({
+                    'nsentences': sample['nsentences'],
+                    'ntokens': sample['ntokens'],
+                    'max_sentence_length':
+                        sample['net_input']['src_tokens'].shape[1],
+                    'step_number': self.get_num_updates(),
+                    'stop_at_layer': str(e)
+                    # 'estimated_time': compute_time_estimation,
+                    # 'actual_time':
+                    #     time.time() - (current_compute_time + start_compute)
+                })
+                continue
             except Exception:
                 self.consolidate_optimizer()
                 # self.save_checkpoint(
@@ -933,6 +934,7 @@ class Trainer(object):
             sample_size = float(sample_size)
 
         # gather logging outputs from all replicas
+        compute_logs['enable_drop'] = False
         torch.cuda.synchronize()
         end_compute = time.time()
         dist.barrier()

@@ -25,6 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.train")
 
 import numpy as np
+import time
 import torch
 from omegaconf import DictConfig, OmegaConf
 
@@ -176,6 +177,27 @@ def main(cfg: FairseqConfig) -> None:
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
 
+    class ComputeTimeout(Exception):
+        pass
+    compute_logs = {
+        'start_compute': 0,
+        'threshold': 0,
+        'compute_timeout_error': ComputeTimeout,
+        'enable_drop': False
+    }
+
+    def get_hook_func(module_name: str):
+        def log_time(*args):
+            if compute_logs['enable_drop'] and (
+                    time.time() - compute_logs['start_compute'] >= compute_logs['threshold']):
+                raise ComputeTimeout(module_name)
+        return log_time
+    print('Registers hooks')
+    for name, module in model.named_modules():
+        if name.split('.')[-1].isdigit():
+            module.register_forward_hook(get_hook_func('_'.join([name, 'fwd'])))
+            module.register_backward_hook(get_hook_func('_'.join([name, 'bwd'])))
+
     train_meter = meters.StopwatchMeter()
     train_meter.start()
     timings = []
@@ -189,7 +211,7 @@ def main(cfg: FairseqConfig) -> None:
             break
 
         # train for one epoch
-        valid_losses, should_stop, timings_epoch = train(cfg, trainer, task, epoch_itr)
+        valid_losses, should_stop, timings_epoch = train(cfg, trainer, task, epoch_itr, compute_logs)
         timings.extend(timings_epoch)
         if should_stop:
             break
@@ -249,7 +271,7 @@ def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
 
 @metrics.aggregate("train")
 def train(
-    cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_itr
+    cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_itr, compute_logs
 ) -> Tuple[List[Optional[float]], bool]:
     """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
@@ -319,7 +341,7 @@ def train(
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
-            log_output, timings_step = trainer.train_step(samples)
+            log_output, timings_step = trainer.train_step(samples, compute_logs)
             timings.extend(timings_step)
 
         if log_output is not None:  # not OOM, overflow, ...
