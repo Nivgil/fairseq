@@ -932,9 +932,9 @@ class Trainer(object):
         # gather logging outputs from all replicas
         compute_logs['enable_drop'] = False
         # torch.cuda.synchronize()
-        end_compute = time.time()
+        # end_compute = time.time()
         # dist.barrier()
-        start_all_reduce = time.time()
+        # start_all_reduce = time.time()
         if self._sync_stats():
             train_time = self._local_cumulative_training_time()
             (
@@ -958,7 +958,7 @@ class Trainer(object):
                 self.optimizer.all_reduce_grads(self.model)
                 if utils.has_parameters(self.criterion):
                     self.optimizer.all_reduce_grads(self.criterion)
-                end_all_reduce = time.time()
+                # end_all_reduce = time.time()
 
             with torch.autograd.profiler.record_function("multiply-grads"):
                 # multiply gradients by (data_parallel_size / sample_size) since
@@ -1002,21 +1002,21 @@ class Trainer(object):
 
             with torch.autograd.profiler.record_function("optimizer"):
                 # take an optimization step
-                start_optim = time.time()
+                # start_optim = time.time()
                 self.task.optimizer_step(
                     self.optimizer, model=self.model, update_num=self.get_num_updates()
                 )
-                end_optim = time.time()
-                timings.append(
-                    {'step_number': self.get_num_updates(),
-                     'start_compute': start_compute,
-                     'end_compute': end_compute,
-                     'start_optimizer': start_optim,
-                     'end_optimizer': end_optim,
-                     'start_all_reduce': start_all_reduce,
-                     'end_all_reduce': end_all_reduce
-                     }
-                )
+                # end_optim = time.time()
+                # timings.append(
+                #     {'step_number': self.get_num_updates(),
+                #      'start_compute': start_compute,
+                #      'end_compute': end_compute,
+                #      # 'start_optimizer': start_optim,
+                #      # 'end_optimizer': end_optim,
+                #      # 'start_all_reduce': start_all_reduce,
+                #      # 'end_all_reduce': end_all_reduce
+                #      }
+                # )
                 if self.cfg.common.amp and overflow:
                     if self._amp_retries == self.cfg.common.amp_batch_retries:
                         logger.info("AMP: skipping this batch.")
