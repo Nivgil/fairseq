@@ -823,10 +823,8 @@ class Trainer(object):
         compute_logs['enable_drop'] = self.get_num_updates() > 5 and (
                 compute_logs['threshold'] > 0)
         start_compute = time.time()
-        idx = -1
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
-            idx +=1
             def maybe_no_sync():
                 """
                 Whenever *samples* contains more than one mini-batch, we
@@ -868,9 +866,6 @@ class Trainer(object):
                             sample['net_input']['src_tokens'].shape[1],
                         'step_number': self.get_num_updates(),
                         'stop_at_layer': 'FULL'
-                        # 'estimated_time': compute_time_estimation,
-                        # 'actual_time':
-                        #     time.time() - (current_compute_time + start_compute)
                     })
                     del loss
 

@@ -194,7 +194,7 @@ def main(cfg: FairseqConfig) -> None:
         return log_time
     print('Registers hooks')
     for name, module in model.named_modules():
-        if name.split('.')[-1].isdigit():
+        if name.split('.')[-1].isdigit() or name.endswith('lm_head'):
             module.register_forward_hook(get_hook_func('_'.join([name, 'fwd'])))
             module.register_backward_hook(get_hook_func('_'.join([name, 'bwd'])))
 
