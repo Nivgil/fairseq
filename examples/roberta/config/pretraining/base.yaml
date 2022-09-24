@@ -39,9 +39,9 @@ lr_scheduler:
 optimization:
   clip_norm: 0
   lr: [0.0005]
-  max_update: 4000
+  max_update: 1200
   update_freq: [4]
-  compute_threshold: 0.95
+  compute_threshold: -1
 
 model:
   _name: roberta
