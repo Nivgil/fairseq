@@ -849,6 +849,8 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
+                    if compute_logs['enable_drop'] and (time.time() - start_compute) > compute_logs['threshold']:
+                        raise compute_timeout_error('pre_forward')
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
                         model=self.model,
@@ -935,9 +937,9 @@ class Trainer(object):
 
         # gather logging outputs from all replicas
         compute_logs['enable_drop'] = False
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         end_compute = time.time()
-        dist.barrier()
+        # dist.barrier()
         start_all_reduce = time.time()
         if self._sync_stats():
             train_time = self._local_cumulative_training_time()
