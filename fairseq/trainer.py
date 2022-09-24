@@ -927,7 +927,16 @@ class Trainer(object):
         if torch.is_tensor(sample_size):
             sample_size = sample_size.float()
         else:
-            sample_size = float(sample_size)
+            sample_size = torch.tensor(sample_size, dtype=torch.float, device='cuda')
+
+        if sample_size == 0.0:
+            logging_output = {
+                "loss": torch.tensor(0, dtype=torch.float, device=torch.cuda.current_device()),
+                "ntokens": 0,
+                "nsentences": 0,
+                "sample_size": torch.tensor(0, dtype=torch.float, device=torch.cuda.current_device()),
+            }
+            logging_outputs.append(logging_output)
 
         # gather logging outputs from all replicas
         compute_logs['enable_drop'] = False
