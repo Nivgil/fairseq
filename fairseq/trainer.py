@@ -852,8 +852,6 @@ class Trainer(object):
                     # forward and backward
                     if compute_logs['enable_drop'] and (time.time() - start_compute) > compute_logs['threshold']:
                         raise compute_timeout_error('pre_forward')
-                    if distributed_utils.get_data_parallel_rank() == 0 and idx > 1:
-                        raise compute_timeout_error('debug double drop')
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
                         model=self.model,
