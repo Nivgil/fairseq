@@ -62,6 +62,9 @@ class LegacyDistributedDataParallel(nn.Module):
             paramlists[device] += [param]
         self.per_device_params = list(paramlists.values())
 
+    def set_accumulate_grads(self, value):
+        self.accumulate_grads = value
+
     @contextmanager
     def no_sync(self):
         """A context manager to disable gradient synchronization."""

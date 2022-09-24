@@ -823,9 +823,10 @@ class Trainer(object):
         compute_logs['enable_drop'] = self.get_num_updates() > 5 and (
                 compute_logs['threshold'] > 0)
         start_compute = time.time()
+        idx = -1
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
-
+            idx +=1
             def maybe_no_sync():
                 """
                 Whenever *samples* contains more than one mini-batch, we
@@ -851,6 +852,8 @@ class Trainer(object):
                     # forward and backward
                     if compute_logs['enable_drop'] and (time.time() - start_compute) > compute_logs['threshold']:
                         raise compute_timeout_error('pre_forward')
+                    if distributed_utils.get_data_parallel_rank() == 0 and idx > 1:
+                        raise compute_timeout_error('debug double drop')
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
                         model=self.model,
@@ -904,10 +907,8 @@ class Trainer(object):
                         sample['net_input']['src_tokens'].shape[1],
                     'step_number': self.get_num_updates(),
                     'stop_at_layer': str(e)
-                    # 'estimated_time': compute_time_estimation,
-                    # 'actual_time':
-                    #     time.time() - (current_compute_time + start_compute)
                 })
+                self.model.set_accumulate_grads(False)
                 continue
             except Exception:
                 self.consolidate_optimizer()
