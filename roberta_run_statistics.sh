@@ -42,7 +42,7 @@ do
 	sleep 5
 
 done
-
+#
 
 thresholds=( -1 1.2 1.175 1.15 1.125 1.1 1.075 )
 for th in "${thresholds[@]}"
